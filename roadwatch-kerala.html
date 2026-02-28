@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoadWatch Kerala - Report Traffic Violations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #ff4757;
+            --secondary: #2ed573;
+            --warning: #ffa502;
+            --dark: #1e272e;
+            --light: #f1f2f6;
+            --accent: #5f27cd;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--dark);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: fadeInDown 0.6s ease-out;
+        }
+
+        .header h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 800;
+            color: white;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .header .tagline {
+            font-size: clamp(1rem, 2vw, 1.3rem);
+            color: rgba(255, 255, 255, 0.95);
+            font-weight: 400;
+            margin-bottom: 8px;
+        }
+
+        .header .location {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            padding: 8px 20px;
+            border-radius: 50px;
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+            animation: fadeInUp 0.6s ease-out 0.2s both;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-card .label {
+            font-size: 0.85rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 24px;
+            padding: clamp(25px, 4vw, 40px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+            animation: fadeInUp 0.6s ease-out 0.4s both;
+        }
+
+        .form-section {
+            margin-bottom: 25px;
+        }
+
+        .form-section label {
+            display: block;
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+            color: var(--dark);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-section input,
+        .form-section select,
+        .form-section textarea {
+            width: 100%;
+            padding: 16px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .form-section input:focus,
+        .form-section select:focus,
+        .form-section textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 71, 87, 0.2);
+        }
+
+        .form-section textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .plate-input-wrapper {
+            position: relative;
+        }
+
+        .plate-input {
+            font-family: 'JetBrains Mono', monospace !important;
+            text-transform: uppercase;
+            font-size: 1.2rem !important;
+            letter-spacing: 2px;
+            font-weight: 700;
+        }
+
+        .plate-format-hint {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.75rem;
+            color: #999;
+            font-family: 'JetBrains Mono', monospace;
+            pointer-events: none;
+        }
+
+        .violation-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .violation-option {
+            position: relative;
+        }
+
+        .violation-option input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+        }
+
+        .violation-option label {
+            display: block;
+            padding: 14px 18px;
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            letter-spacing: 0;
+        }
+
+        .violation-option input[type="checkbox"]:checked + label {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 71, 87, 0.3);
+        }
+
+        .photo-upload {
+            border: 3px dashed #ddd;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .photo-upload:hover {
+            border-color: var(--primary);
+            background: white;
+        }
+
+        .photo-upload input[type="file"] {
+            display: none;
+        }
+
+        .photo-upload-content {
+            pointer-events: none;
+        }
+
+        .photo-upload-content .icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .photo-upload-content p {
+            font-size: 1rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .photo-upload-content .hint {
+            font-size: 0.85rem;
+            color: #999;
+        }
+
+        .photo-preview {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .photo-preview.show {
+            display: block;
+        }
+
+        .photo-preview img {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary) 0%, #e84118 100%);
+            color: white;
+            border: none;
+            padding: 20px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 24px rgba(255, 71, 87, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(255, 71, 87, 0.5);
+        }
+
+        .submit-btn:active {
+            transform: translateY(-1px);
+        }
+
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .success-message,
+        .error-message {
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            display: none;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .success-message {
+            background: #d4edda;
+            border: 2px solid var(--secondary);
+            color: #155724;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            border: 2px solid var(--primary);
+            color: #721c24;
+        }
+
+        .success-message.show,
+        .error-message.show {
+            display: block;
+        }
+
+        .recent-reports {
+            margin-top: 30px;
+        }
+
+        .recent-reports h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            color: var(--dark);
+        }
+
+        .report-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .report-item .plate {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 8px;
+        }
+
+        .report-item .violation-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .report-item .violation-tag {
+            background: var(--primary);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .report-item .description {
+            color: #555;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .report-item .meta {
+            font-size: 0.85rem;
+            color: #999;
+        }
+
+        .info-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            animation: fadeInUp 0.6s ease-out 0.3s both;
+        }
+
+        .info-box h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .violation-types {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚦 RoadWatch Kerala</h1>
+            <p class="tagline">Report traffic violations. Build accountability.</p>
+            <div class="location">📍 Kerala, India</div>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="number" id="totalReports">0</div>
+                <div class="label">Total Reports</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="todayReports">0</div>
+                <div class="label">Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="verifiedReports">0</div>
+                <div class="label">Verified</div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h3>📋 How It Works</h3>
+            <ul>
+                <li><strong>Report violations</strong> with photo evidence</li>
+                <li><strong>AI reviews</strong> each report to prevent spam and abuse</li>
+                <li><strong>Build a safety score</strong> for vehicles in your community</li>
+                <li><strong>Anonymous reporting</strong> - your identity stays private</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <form id="reportForm">
+                <div class="form-section">
+                    <label for="plateNumber">🚗 Vehicle Number Plate</label>
+                    <div class="plate-input-wrapper">
+                        <input 
+                            type="text" 
+                            id="plateNumber" 
+                            class="plate-input"
+                            placeholder="KL-07-AB-1234" 
+                            required
+                            pattern="[A-Z]{2}-[0-9]{2}-[A-Z]{1,2}-[0-9]{1,4}"
+                            maxlength="14"
+                        >
+                        <span class="plate-format-hint">KL-XX-XX-XXXX</span>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <label>⚠️ Violation Type (Select all that apply)</label>
+                    <div class="violation-types">
+                        <div class="violation-option">
+                            <input type="checkbox" id="rash" name="violation" value="Rash Driving">
+                            <label for="rash">🏎️ Rash Driving</label>
+                        </div>
+                        <div class="violation-option">
+                            <input type="checkbox" id="wrongLane" name="violation" value="Wrong Lane">
+                            <label for="wrongLane">↔️ Wrong Lane</label>
+                        </div>
+                        <div class="violation-option">
+                            <input type="checkbox" id="noHelmet" name="violation" value="No Helmet">
+                            <label for="noHelmet">🪖 No Helmet</label>
+                        </div>
+                        <div class="violation-option">
+                            <input type="checkbox" id="redLight" name="violation" value="Red Light Jump">
+                            <label for="redLight">🚦 Red Light Jump</label>
+                        </div>
+                        <div class="violation-option">
+                            <input type="checkbox" id="overload" name="violation" value="Overloading">
+                            <label for="overload">📦 Overloading</label>
+                        </div>
+                        <div class="violation-option">
+                            <input type="checkbox" id="phone" name="violation" value="Phone While Driving">
+                            <label for="phone">📱 Phone Use</label>
+                        </div>
+                        <div class="violation-option">
+                            <input type="checkbox" id="parking" name="violation" value="Illegal Parking">
+                            <label for="parking">🅿️ Illegal Parking</label>
+                        </div>
+                        <div class="violation-option">
+                            <input type="checkbox" id="drunk" name="violation" value="Suspected DUI">
+                            <label for="drunk">🍺 Suspected DUI</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <label for="location">📍 Location of Incident</label>
+                    <input type="text" id="location" placeholder="E.g., MG Road Junction, Kochi" required>
+                </div>
+
+                <div class="form-section">
+                    <label for="description">📝 Description (Optional)</label>
+                    <textarea 
+                        id="description" 
+                        placeholder="Provide additional details about what happened..."
+                    ></textarea>
+                </div>
+
+                <div class="form-section">
+                    <label>📸 Photo Evidence (Recommended)</label>
+                    <div class="photo-upload" id="photoUpload">
+                        <input type="file" id="photoInput" accept="image/*" capture="environment">
+                        <div class="photo-upload-content">
+                            <div class="icon">📷</div>
+                            <p><strong>Tap to capture or upload photo</strong></p>
+                            <p class="hint">Clear photo of vehicle and violation</p>
+                        </div>
+                    </div>
+                    <div class="photo-preview" id="photoPreview">
+                        <img id="previewImage" src="" alt="Preview">
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    Submit Report
+                </button>
+
+                <div class="success-message" id="successMessage">
+                    ✅ <strong>Report submitted successfully!</strong><br>
+                    Our AI is reviewing your report. You'll see it in the feed once verified.
+                </div>
+
+                <div class="error-message" id="errorMessage"></div>
+            </form>
+        </div>
+
+        <div class="card recent-reports">
+            <h2>📊 Recent Verified Reports</h2>
+            <div id="reportsList">
+                <div class="report-item">
+                    <div class="plate">KL-01-AB-1234</div>
+                    <div class="violation-tags">
+                        <span class="violation-tag">Rash Driving</span>
+                        <span class="violation-tag">Wrong Lane</span>
+                    </div>
+                    <div class="description">
+                        Vehicle was overtaking dangerously on NH66 near Ernakulam toll plaza. Nearly caused an accident.
+                    </div>
+                    <div class="meta">📍 NH66, Ernakulam • 2 hours ago</div>
+                </div>
+
+                <div class="report-item">
+                    <div class="plate">KL-07-BC-5678</div>
+                    <div class="violation-tags">
+                        <span class="violation-tag">Red Light Jump</span>
+                    </div>
+                    <div class="description">
+                        Ran through red light at Palarivattom signal junction during heavy traffic.
+                    </div>
+                    <div class="meta">📍 Palarivattom, Kochi • 4 hours ago</div>
+                </div>
+
+                <div class="report-item">
+                    <div class="plate">KL-14-XY-9012</div>
+                    <div class="violation-tags">
+                        <span class="violation-tag">No Helmet</span>
+                        <span class="violation-tag">Phone Use</span>
+                    </div>
+                    <div class="description">
+                        Two-wheeler rider without helmet, using phone while riding on Calicut bypass.
+                    </div>
+                    <div class="meta">📍 NH66 Bypass, Kozhikode • 6 hours ago</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize stats (in real app, these would come from database)
+        let stats = {
+            total: 247,
+            today: 18,
+            verified: 189
+        };
+
+        function updateStats() {
+            document.getElementById('totalReports').textContent = stats.total;
+            document.getElementById('todayReports').textContent = stats.today;
+            document.getElementById('verifiedReports').textContent = stats.verified;
+        }
+
+        // Photo upload handling
+        const photoUpload = document.getElementById('photoUpload');
+        const photoInput = document.getElementById('photoInput');
+        const photoPreview = document.getElementById('photoPreview');
+        const previewImage = document.getElementById('previewImage');
+
+        photoUpload.addEventListener('click', () => {
+            photoInput.click();
+        });
+
+        photoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewImage.src = e.target.result;
+                    photoPreview.classList.add('show');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Plate number formatting
+        const plateInput = document.getElementById('plateNumber');
+        plateInput.addEventListener('input', (e) => {
+            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            
+            // Format as KL-XX-XX-XXXX
+            if (value.length > 2) {
+                value = value.slice(0, 2) + '-' + value.slice(2);
+            }
+            if (value.length > 5) {
+                value = value.slice(0, 5) + '-' + value.slice(5);
+            }
+            if (value.length > 8) {
+                value = value.slice(0, 8) + '-' + value.slice(8);
+            }
+            
+            e.target.value = value;
+        });
+
+        // Form submission
+        const reportForm = document.getElementById('reportForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const successMessage = document.getElementById('successMessage');
+        const errorMessage = document.getElementById('errorMessage');
+
+        reportForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Get form data
+            const plateNumber = document.getElementById('plateNumber').value;
+            const location = document.getElementById('location').value;
+            const description = document.getElementById('description').value;
+            
+            // Get selected violations
+            const violationCheckboxes = document.querySelectorAll('input[name="violation"]:checked');
+            const violations = Array.from(violationCheckboxes).map(cb => cb.value);
+
+            if (violations.length === 0) {
+                showError('Please select at least one violation type');
+                return;
+            }
+
+            // Get photo if uploaded
+            const photoFile = photoInput.files[0];
+
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+
+            // Simulate API call (in real app, this would send to your backend)
+            try {
+                await simulateSubmission({
+                    plateNumber,
+                    violations,
+                    location,
+                    description,
+                    photo: photoFile ? photoFile.name : null,
+                    timestamp: new Date().toISOString()
+                });
+
+                // Show success message
+                successMessage.classList.add('show');
+                errorMessage.classList.remove('show');
+
+                // Reset form
+                reportForm.reset();
+                photoPreview.classList.remove('show');
+
+                // Update stats
+                stats.total++;
+                stats.today++;
+                updateStats();
+
+                // Scroll to success message
+                successMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Hide success message after 5 seconds
+                setTimeout(() => {
+                    successMessage.classList.remove('show');
+                }, 5000);
+
+            } catch (error) {
+                showError('Failed to submit report. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Report';
+            }
+        });
+
+        function showError(message) {
+            errorMessage.textContent = '❌ ' + message;
+            errorMessage.classList.add('show');
+            setTimeout(() => {
+                errorMessage.classList.remove('show');
+            }, 5000);
+        }
+
+        function simulateSubmission(data) {
+            return fetch('http://localhost:5000/api/reports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+             }).then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.reason || err.message || 'Submission failed');
+                    });
+                }
+                return response.json();
+            });
+        }
+
+        // Initialize stats on page load
+        updateStats();
+    </script>
+</body>
+</html>
