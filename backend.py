@@ -196,12 +196,14 @@ def submit_report():
             }), 429
         
         # Create new report
+        # Note: frontend sends 'photo' (filename), backend uses 'photo_url' (URL)
+        # For now, we just store the filename; in production use CloudFlare/S3
         report = Report(
             plate_number=plate_number,
             violations=data['violations'],
             location=data['location'],
             description=data.get('description'),
-            photo_url=data.get('photoUrl'),
+            photo_url=data.get('photo') or data.get('photoUrl'),
             user_id=user_id
         )
         
@@ -216,6 +218,9 @@ def submit_report():
         
         # AI Moderation
         is_approved, reason, confidence, flags = moderate_report_with_ai(report_data)
+        # log the moderation decision so we can diagnose why a report was rejected
+        print(f"DEBUG: AI moderation returned approved={is_approved}, reason={reason}, "
+              f"confidence={confidence}, flags={flags}")
         
         # Set moderation results
         report.set_moderation(is_approved, reason, confidence, flags)
@@ -232,6 +237,8 @@ def submit_report():
                 'confidence': confidence
             }), 201
         else:
+            # moderation refused the report; include reason in logs
+            print(f"INFO: Report rejected by AI moderation: {reason} (flags={flags})")
             return jsonify({
                 'success': False,
                 'message': 'Report rejected by AI moderation',
