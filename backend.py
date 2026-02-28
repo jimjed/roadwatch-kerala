@@ -6,6 +6,7 @@ This Flask app handles report submissions and uses Claude AI for moderation
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import anthropic
+import httpx
 import os
 from datetime import datetime, timedelta
 import json
