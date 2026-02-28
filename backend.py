@@ -61,7 +61,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///roadwatch.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    "connect_timeout": 5,
+    "connect_args": {
+        "connect_timeout": 5  # Timeout in seconds
+    },
     "pool_pre_ping": True,
 }
 
