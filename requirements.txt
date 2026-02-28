@@ -5,6 +5,6 @@ anthropic==0.39.0
 # the Anthropiс client is recognised.  the patch in `backend.py`
 # makes a best‑effort translation, but it's cleaner to install a version
 # which actually understands the keyword.
-httpx>=0.30.0
+httpx>=0.27.2
 python-dotenv==1.0.0
 gunicorn==21.2.0
