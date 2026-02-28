@@ -165,7 +165,8 @@ def submit_report():
     """Handle new report submission"""
     try:
         data = request.get_json()
-        
+        print(f"DEBUG: Received data: {data}")
+
         # Validate required fields
         required_fields = ['plateNumber', 'violations', 'location']
         for field in required_fields:
