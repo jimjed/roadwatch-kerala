@@ -1,5 +1,7 @@
 flask==3.0.0
 flask-cors==4.0.0
+flask-sqlalchemy==3.1.1
+psycopg2-binary==2.9.9
 anthropic==0.39.0
 # ensure we have a recent httpx so that the `proxies` argument used by
 # the Anthropiс client is recognised.  the patch in `backend.py`
