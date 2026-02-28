@@ -3,7 +3,17 @@
 A web application for reporting traffic violations in Kerala with AI-powered moderation to prevent spam and abuse.
 
 # Install Python dependencies
+
+The backend relies on `anthropic` which in turn depends on `httpx`.
+If you run into startup errors mentioning ``Client.__init__() got an
+unexpected keyword argument 'proxies'`` make sure you reinstall with the
+latest dependencies (`pip install -r requirements.txt` will pull in
+httpx>=0.30).  The code also includes a small compatibility shim in
+``backend.py`` so that older `httpx` releases will still work.
+
+```sh
 pip install -r requirements.txt
+```
 
 ### GET /api/reports
 Get list of approved reports

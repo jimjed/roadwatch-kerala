@@ -6,6 +6,7 @@ This Flask app handles report submissions and uses Claude AI for moderation
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import anthropic
+import httpx
 import os
 from datetime import datetime
 import json
@@ -16,6 +17,40 @@ CORS(app)  # Enable CORS for frontend
 
 # Initialize Claude client (you'll need to set your API key)
 # Get your API key from: https://console.anthropic.com/
+#
+#
+# The official `anthropic` client library constructs an `httpx.Client`
+# instance internally and passes a `proxies` keyword argument.  older
+# versions of `httpx` (and the version currently pulled in by the
+# Heroku/Container build) do **not** expose a `proxies` parameter; the
+# argument was renamed to `proxy` in 0.24 and removed in later
+# releases.  if a mismatched combination of `anthropic` and `httpx`
+# ends up on the image we see errors like::
+#
+#     TypeError: Client.__init__() got an unexpected keyword argument
+#     'proxies'
+#
+# To make the application robust against whatever version of `httpx`
+# happens to be installed in the container, monkey‑patch the client
+# constructor so that it accepts `proxies` and forwards it to the
+# correct parameter name.  this is a small compatibility shim and
+# keeps us from having to pin `httpx` very tightly in requirements.
+
+# patch httpx.Client before creating the Anthropiс client
+_orig_httpx_client_init = httpx.Client.__init__
+
+def _httpx_init_with_proxies(self, *args, proxies=None, **kwargs):
+    # the new httpx versions expect `proxy` (singular); older ones
+    # don't even know what a proxies kwarg is.  convert if present.
+    if proxies is not None:
+        # avoid overwriting an explicit proxy arg if one is already
+        # provided for some reason
+        kwargs.setdefault("proxy", proxies)
+    return _orig_httpx_client_init(self, *args, **kwargs)
+
+httpx.Client.__init__ = _httpx_init_with_proxies
+
+# create the Anthropiс client normally after the shim is installed
 client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
 )
