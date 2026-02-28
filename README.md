@@ -25,6 +25,19 @@ Get all reports for a specific vehicle
 ### GET /api/stats
 Get overall statistics
 
+### Authentication (optional)
+The backend now supports Firebase authentication.  To register or update a
+user, POST to `/api/auth/register` with a Bearer ID token in the
+`Authorization` header.  Authenticated endpoints use the following routes:
+
+```text
+GET  /api/auth/profile      # return current user
+GET  /api/auth/reports      # list reports submitted by current user
+``` 
+
+For convenience unauthenticated clients may still POST reports; they are
+tracked by IP address and subject to duplicate prevention.
+
 ## 🎨 Customization Ideas
 
 ### Add User Authentication

@@ -1,66 +1,21 @@
 """
-RoadWatch Kerala - Backend API with AI Moderation
-This Flask app handles report submissions and uses Claude AI for moderation
+RoadWatch Kerala - Backend API with AI Moderation and User Authentication
+This Flask app handles report submissions, uses Claude AI for moderation, and manages user authentication
 """
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import anthropic
-import httpx
 import os
 from datetime import datetime, timedelta, timezone
 import json
 import re
 from models import db, Report
-
-# optional authentication support
-try:
-    from user_model import User
-    from auth import verify_firebase_token, require_auth, optional_auth
-except ImportError:
-    # if auth modules aren't present yet, we'll fail later when routes are used
-    User = None
-    verify_firebase_token = None
-    require_auth = lambda f: f
-    optional_auth = lambda f: f
+from user_model import User
+from auth import verify_firebase_token, require_auth, optional_auth
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend
-
-# Initialize Claude client (you'll need to set your API key)
-# Get your API key from: https://console.anthropic.com/
-#
-#
-# The official `anthropic` client library constructs an `httpx.Client`
-# instance internally and passes a `proxies` keyword argument.  older
-# versions of `httpx` (and the version currently pulled in by the
-# Heroku/Container build) do **not** expose a `proxies` parameter; the
-# argument was renamed to `proxy` in 0.24 and removed in later
-# releases.  if a mismatched combination of `anthropic` and `httpx`
-# ends up on the image we see errors like::
-#
-#     TypeError: Client.__init__() got an unexpected keyword argument
-#     'proxies'
-#
-# To make the application robust against whatever version of `httpx`
-# happens to be installed in the container, monkey‑patch the client
-# constructor so that it accepts `proxies` and forwards it to the
-# correct parameter name.  this is a small compatibility shim and
-# keeps us from having to pin `httpx` very tightly in requirements.
-
-# patch httpx.Client before creating the Anthropiс client
-_orig_httpx_client_init = httpx.Client.__init__
-
-def _httpx_init_with_proxies(self, *args, proxies=None, **kwargs):
-    # the new httpx versions expect `proxy` (singular); older ones
-    # don't even know what a proxies kwarg is.  convert if present.
-    if proxies is not None:
-        # avoid overwriting an explicit proxy arg if one is already
-        # provided for some reason
-        kwargs.setdefault("proxy", proxies)
-    return _orig_httpx_client_init(self, *args, **kwargs)
-
-httpx.Client.__init__ = _httpx_init_with_proxies
 
 # Database configuration
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -70,17 +25,6 @@ if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///roadwatch.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# add engine options only when using a networked database
-# SQLite's DBAPI does not accept a ``connect_timeout`` keyword.
-if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        "connect_args": {"connect_timeout": 5},
-        "pool_pre_ping": True,
-    }
-else:
-    # for sqlite just enable pool_pre_ping
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True}
 
 # Initialize database
 db.init_app(app)
@@ -105,32 +49,37 @@ def validate_plate_number(plate):
     return bool(re.match(KERALA_PLATE_PATTERN, plate))
 
 
-def utc_now():
-    """Return a timezone-aware UTC datetime."""
-    return datetime.now(timezone.utc)
-
-
-# Authentication endpoints (optional)
 @app.route('/api/auth/register', methods=['POST'])
 def register_user():
     """Register or update user from Firebase authentication"""
     try:
+        # Get token from request
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({'error': 'Missing authorization header'}), 401
+        
         token = auth_header.split('Bearer ')[1]
         user_data = verify_firebase_token(token)
+        
         if not user_data:
             return jsonify({'error': 'Invalid token'}), 401
-
+        
+        # Check if user exists
         user = User.query.filter_by(firebase_uid=user_data['uid']).first()
+        
         if user:
+            # Update existing user
             user.display_name = user_data.get('display_name', user.display_name)
             user.photo_url = user_data.get('photo_url', user.photo_url)
             user.last_login = utc_now()
             db.session.commit()
-            return jsonify({'message': 'User updated', 'user': user.to_dict()}), 200
+            
+            return jsonify({
+                'message': 'User updated',
+                'user': user.to_dict()
+            }), 200
         else:
+            # Create new user
             user = User(
                 firebase_uid=user_data['uid'],
                 email=user_data['email'],
@@ -139,7 +88,12 @@ def register_user():
             )
             db.session.add(user)
             db.session.commit()
-            return jsonify({'message': 'User registered successfully', 'user': user.to_dict()}), 201
+            
+            return jsonify({
+                'message': 'User registered successfully',
+                'user': user.to_dict()
+            }), 201
+            
     except Exception as e:
         db.session.rollback()
         print(f"Error registering user: {e}")
@@ -152,9 +106,12 @@ def get_profile():
     """Get current user's profile"""
     try:
         user = User.query.filter_by(firebase_uid=request.current_user['uid']).first()
+        
         if not user:
             return jsonify({'error': 'User not found'}), 404
+        
         return jsonify(user.to_dict()), 200
+        
     except Exception as e:
         print(f"Error getting profile: {e}")
         return jsonify({'error': str(e)}), 500
@@ -166,32 +123,51 @@ def get_user_reports():
     """Get current user's report history"""
     try:
         user = User.query.filter_by(firebase_uid=request.current_user['uid']).first()
+        
         if not user:
             return jsonify({'error': 'User not found'}), 404
+        
+        # Get user's reports
         reports = Report.query.filter_by(user_id=user.id).order_by(Report.created_at.desc()).all()
-        return jsonify({'user': user.to_dict(), 'reports': [r.to_dict() for r in reports]}), 200
+        
+        return jsonify({
+            'user': user.to_dict(),
+            'reports': [r.to_dict() for r in reports]
+        }), 200
+        
     except Exception as e:
         print(f"Error getting user reports: {e}")
         return jsonify({'error': str(e)}), 500
 
 
+def utc_now():
+    """Helper function to get current UTC time"""
+    return datetime.now(timezone.utc)
+
+
+# Kerala plate number validation regex
+KERALA_PLATE_PATTERN = r'^KL-\d{2}-[A-Z]{1,2}-\d{1,4}$'
+
+
+def validate_plate_number(plate):
+    """Validate Kerala vehicle plate number format"""
+    return bool(re.match(KERALA_PLATE_PATTERN, plate))
+
+
 def moderate_report_with_ai(report_data):
     """
-    Use Claude AI to moderate the report for spam, abuse, and legitimacy.
-    Returns: (is_approved, reason, confidence_score, flags)
+    Use Claude AI to moderate the report for spam, abuse, and legitimacy
+    Returns: (is_approved, reason, confidence_score)
     """
+    
+    prompt = f"""You are a traffic violation report moderator for Kerala, India. 
+Review this report and determine if it's legitimate or should be rejected.
 
-    prompt = f"""You are a traffic violation report moderator for Kerala, India. \
-Review this report and determine if it's legitimate or should be rejected.\n\n"""
-    # Build the rest of the prompt using the more detailed guidelines from the
-    # authenticated-version of the backend.  We keep descriptions optional and
-    # emphasise not rejecting solely for missing description.
-    prompt += f"""
 Report Details:
 - Plate Number: {report_data['plateNumber']}
 - Violations: {', '.join(report_data['violations'])}
 - Location: {report_data['location']}
-- Description: {report_data.get('description') or '(No description provided)'}
+- Description: {report_data['description'] or '(No description provided)'}
 - Submitted by User ID: {report_data.get('userId', 'anonymous')}
 
 IMPORTANT GUIDELINES:
@@ -217,6 +193,7 @@ Respond in JSON format:
     "confidence": 0.0-1.0,
     "flags": ["list", "of", "issues", "found"]
 }}"""
+
     try:
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
@@ -251,27 +228,26 @@ Respond in JSON format:
 
 
 def check_duplicate_reports(plate_number, user_identifier, is_authenticated=False, time_window_hours=24):
-    """Check if the same user (or IP) has reported this plate recently.
-
-    If ``is_authenticated`` is True, ``user_identifier`` should be the
-    numeric ``user.id``; otherwise it's treated as an IP string.
-    """
-    cutoff_time = utc_now() - timedelta(hours=time_window_hours)
-
+    """Check if the same user has reported this plate recently"""
+    from datetime import timezone
+    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=time_window_hours)
+    
     if is_authenticated:
-        recent = Report.query.filter(
+        # user_identifier is user.id (integer)
+        recent_reports = Report.query.filter(
             Report.plate_number == plate_number,
             Report.user_id == user_identifier,
             Report.created_at >= cutoff_time
         ).count()
     else:
-        recent = Report.query.filter(
+        # user_identifier is IP address (string)
+        recent_reports = Report.query.filter(
             Report.plate_number == plate_number,
             Report.user_ip == user_identifier,
             Report.created_at >= cutoff_time
         ).count()
-
-    return recent
+    
+    return recent_reports
 
 
 @app.route('/api/reports', methods=['POST'])
@@ -281,27 +257,31 @@ def submit_report():
     try:
         data = request.get_json()
         print(f"DEBUG: Received data: {data}")
-
+        
         # Validate required fields
         required_fields = ['plateNumber', 'violations', 'location']
         for field in required_fields:
             if field not in data or not data[field]:
+                print(f"ERROR: Missing field: {field}")
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
         # Validate plate number format
         plate_number = data['plateNumber'].upper()
         if not validate_plate_number(plate_number):
+            print(f"ERROR: Invalid plate format: {plate_number}")
             return jsonify({'error': 'Invalid Kerala plate number format'}), 400
         
-        # determine user identity (authenticated or IP)
+        # Get user if authenticated
         user = None
-        user_identifier = request.remote_addr
+        user_identifier = request.remote_addr  # Fallback to IP
         is_authenticated = False
-
+        
         if request.current_user:
+            # User is authenticated
             user = User.query.filter_by(firebase_uid=request.current_user['uid']).first()
+            
             if not user:
-                # unlikely, but create if missing
+                # Create user if doesn't exist (shouldn't happen, but just in case)
                 user = User(
                     firebase_uid=request.current_user['uid'],
                     email=request.current_user['email'],
@@ -309,28 +289,41 @@ def submit_report():
                     photo_url=request.current_user.get('photo_url')
                 )
                 db.session.add(user)
-                db.session.flush()
+                db.session.flush()  # Get user.id without committing
+            
+            # Check if user is banned
             if user.is_banned:
-                return jsonify({'error': 'Your account has been suspended',
-                                'reason': user.ban_reason}), 403
+                return jsonify({
+                    'error': 'Your account has been suspended',
+                    'reason': user.ban_reason
+                }), 403
+            
             user_identifier = user.id
             is_authenticated = True
-
+            print(f"DEBUG: Authenticated user: {user.email}")
+        else:
+            print(f"DEBUG: Anonymous user (IP: {request.remote_addr})")
+        
+        # Check for duplicate reports from same user
+        print(f"DEBUG: Checking duplicates for user: {user_identifier}")
         duplicate_count = check_duplicate_reports(plate_number, user_identifier, is_authenticated)
+        print(f"DEBUG: Duplicate count: {duplicate_count}")
         
         if duplicate_count >= 3:
+            print(f"ERROR: Too many duplicates")
             return jsonify({
                 'error': 'You have already reported this vehicle multiple times today. Please wait before reporting again.',
                 'reason': 'duplicate_prevention'
             }), 429
         
         # Create new report
+        print(f"DEBUG: Creating report object")
         report = Report(
             plate_number=plate_number,
             violations=data['violations'],
             location=data['location'],
             description=data.get('description'),
-            photo_url=data.get('photo') or data.get('photoUrl'),
+            photo_url=data.get('photoUrl'),
             user_id=user.id if user else None,
             user_ip=request.remote_addr if not user else None
         )
@@ -345,23 +338,25 @@ def submit_report():
         }
         
         # AI Moderation
+        print(f"DEBUG: Starting AI moderation")
         is_approved, reason, confidence, flags = moderate_report_with_ai(report_data)
-        # log the moderation decision so we can diagnose why a report was rejected
-        print(f"DEBUG: AI moderation returned approved={is_approved}, reason={reason}, "
-              f"confidence={confidence}, flags={flags}")
+        print(f"DEBUG: AI moderation returned approved={is_approved}, reason={reason}, confidence={confidence}, flags={flags}")
         
         # Set moderation results
         report.set_moderation(is_approved, reason, confidence, flags)
-
-        # update user statistics if applicable
+        
+        # Update user stats if authenticated
         if user:
             user.update_stats(is_approved)
         
         # Save to database
+        print(f"DEBUG: Attempting to save to database")
         db.session.add(report)
         db.session.commit()
+        print(f"DEBUG: Successfully saved to database with ID: {report.id}")
         
         if is_approved:
+            print(f"SUCCESS: Report approved and saved")
             return jsonify({
                 'success': True,
                 'message': 'Report submitted and approved',
@@ -369,7 +364,6 @@ def submit_report():
                 'confidence': confidence
             }), 201
         else:
-            # moderation refused the report; include reason in logs
             print(f"INFO: Report rejected by AI moderation: {reason} (flags={flags})")
             return jsonify({
                 'success': False,
@@ -381,7 +375,7 @@ def submit_report():
             
     except Exception as e:
         db.session.rollback()
-        print(f"Error submitting report: {e}")
+        print(f"EXCEPTION: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -436,12 +430,13 @@ def get_reports_by_plate(plate_number):
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     """Get overall statistics"""
+    from datetime import timezone
     total_reports = Report.query.count()
     approved_reports = Report.query.filter_by(status='approved').count()
     rejected_reports = Report.query.filter_by(status='rejected').count()
     
-    today = datetime.utcnow().date()
-    today_start = datetime.combine(today, datetime.min.time())
+    today = datetime.now(timezone.utc).date()
+    today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
     today_reports = Report.query.filter(Report.created_at >= today_start).count()
     
     return jsonify({

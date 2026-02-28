@@ -2,10 +2,14 @@
 Database models for RoadWatch Kerala
 """
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 db = SQLAlchemy()
+
+def utc_now():
+    """Helper function to get current UTC time"""
+    return datetime.now(timezone.utc)
 
 class Report(db.Model):
     """Traffic violation report"""
@@ -17,7 +21,8 @@ class Report(db.Model):
     location = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     photo_url = db.Column(db.String(500))
-    user_id = db.Column(db.String(100))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # Link to User table
+    user_ip = db.Column(db.String(50))  # Keep IP for backwards compatibility
     status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
     
     # Moderation details
@@ -28,21 +33,30 @@ class Report(db.Model):
     moderation_reviewed_at = db.Column(db.DateTime)
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     
     def __init__(self, plate_number, violations, location, description=None, 
-                 photo_url=None, user_id=None, status='pending'):
+                 photo_url=None, user_id=None, user_ip=None, status='pending'):
         self.plate_number = plate_number
         self.violations = json.dumps(violations) if isinstance(violations, list) else violations
         self.location = location
         self.description = description
         self.photo_url = photo_url
         self.user_id = user_id
+        self.user_ip = user_ip
         self.status = status
     
     def to_dict(self):
         """Convert report to dictionary for JSON response"""
+        user_info = None
+        if self.reporter:
+            user_info = {
+                'displayName': self.reporter.display_name,
+                'photoUrl': self.reporter.photo_url,
+                'reputationScore': self.reporter.reputation_score
+            }
+        
         return {
             'id': self.id,
             'plateNumber': self.plate_number,
@@ -50,7 +64,7 @@ class Report(db.Model):
             'location': self.location,
             'description': self.description,
             'photoUrl': self.photo_url,
-            'userId': self.user_id,
+            'user': user_info,
             'status': self.status,
             'moderation': {
                 'approved': self.moderation_approved,
@@ -69,7 +83,7 @@ class Report(db.Model):
         self.moderation_reason = reason
         self.moderation_confidence = confidence
         self.moderation_flags = json.dumps(flags) if isinstance(flags, list) else flags
-        self.moderation_reviewed_at = datetime.utcnow()
+        self.moderation_reviewed_at = utc_now()
         self.status = 'approved' if approved else 'rejected'
     
     def __repr__(self):
