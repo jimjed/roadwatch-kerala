@@ -744,7 +744,7 @@
         }
 
         function simulateSubmission(data) {
-            return fetch('http://localhost:5000/api/reports', {
+            return fetch('https://roadwatch-kerala.up.railway.app/api/reports', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
